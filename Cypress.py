@@ -48,6 +48,11 @@ class App:
         reports = self.reportsDB.Read()
         for reportId in reports:
             report = reports[reportId]
+    def SubmitReport(self, location, type, description, user, time_submitted, department):
+        report = Report(location, type, description, user, time_submitted, department)
+        self.reportsDB.Create(report.id, report)
+        return True
+
 
 
 """
@@ -300,7 +305,7 @@ class LoginScene(SceneBase):
         valid_login = app.Login(username, password)
         if valid_login:
             self.message = "Login successful!"
-            scene_manager.SetScene(ReportScene(username))
+            scene_manager.SetScene(ReportScene())
         else:
             self.failed_attempts += 1
             self.message = "Invalid username or password."
@@ -339,9 +344,8 @@ class LoginScene(SceneBase):
             DrawTextBox(screen, self.message, FONT, (300, 350), text_color=pygame.Color('red'))
 
 class ReportScene(SceneBase):
-    def __init__(self, username):
+    def __init__(self):
         super().__init__()
-        self.username = username
         try:
             self.map_surface = pygame.image.load("toronto_map.png").convert()
             self.map_surface = pygame.transform.scale(self.map_surface, (600, 400))
@@ -359,17 +363,24 @@ class ReportScene(SceneBase):
         self.message = ""
 
     def SubmitReport(self):
-        if self.selected_location is None:
+        location = self.selected_location
+        problem_type = self.problem_box.text.strip()
+        description = self.desc_box.text.strip()
+        if location is None:
             self.message = "Please select a location on the map."
             return
-        if self.problem_box.text.strip() == "":
+        if problem_type == "":
             self.message = "Please select a problem type."
             return
-        if self.desc_box.text.strip() == "":
+        if description == "":
             self.message = "Please provide a description."
             return
 
-        self.report_info = f"Report by {self.username}: {self.problem_box.text}, {self.desc_box.text} at {self.selected_location}"
+        user = app.usersDB.Read(app.userId)
+
+        report = Report(location, problem_type, description,
+                         user, "insert time", "Department1")
+        self.report_info = f"Report by {user.username}: {self.problem_box.text}, {self.desc_box.text} at {self.selected_location}"
         self.message = "Report submitted successfully!"
         self.problem_box.text = ""
         self.desc_box.text = ""
@@ -443,7 +454,7 @@ app.CreateAccount("admin", "admin")
 app.CreateAccount("user", "password")
 
 start_scene = LoginScene()
-# start_scene = ReportScene("user")
+# start_scene = ReportScene()
 scene_manager = SceneManager()
 
 # ---------- Load Background Image ----------
@@ -454,14 +465,6 @@ except Exception as e:
     print("Error loading background image:", e)
     bg_image = None
 
-# user1 = User("Username1", "Password1")
-# user2 = User("Username2", "Password2")
-# report1 = Report("Location1", "Type1", "Description1", user1, "insert time", "Department1")
-# report2 = Report("Location2", "Type2", "Description2", user2, "insert time", "Department2")
-# users = Database()
-# users.Create(user1.id, user1)
-# users.Create(user2.id, user2)
-# print(user1.id, report1.id, user2.id, report2.id)
 
 if __name__ == '__main__':
     main()
