@@ -8,19 +8,14 @@ App (Mock functionality for app without GUI or function calls)
 Page, notifications/popup
 Login(), SetPage(newPage), SearchReports(), Subscribe(), FindSimilarReports(report)
 """
-class AppPagesEnum(Enum):
-    LOGIN, HOME, SEARCH, VIEW_REPORT = range(4)
+# class AppPagesEnum(Enum):
+#     LOGIN, HOME, SEARCH, VIEW_REPORT = range(4)
 class App:
     def __init__(self):
-        self.page = ""
-        self.notifs = []
         self.usersDB = Database()
         self.reportsDB = Database()
         self.userId = None
         self.reportId = None
-    
-    def SetPage(self, newPage):
-        self.page = newPage
     
     def QueryUserIdFromLogin(self, username, password):
         users = self.usersDB.Read()
@@ -31,23 +26,19 @@ class App:
         return None
     
     def CreateAccount(self, username, password):
-        userId = self.QueryUserIDFromLogin(username, password)
+        userId = self.QueryUserIdFromLogin(username, password)
         if userId != None:
-            self.notifs.append("Username or password already exists.")
             return False
         newUser = User(username, password)
         self.usersDB.Create(newUser.id, newUser)
         self.userId = newUser.id
-        self.SetPage(AppPagesEnum.HOME)
         return True
     
     def Login(self, username, password):
-        userId = self.QueryUserIDFromLogin(username, password)
+        userId = self.QueryUserIdFromLogin(username, password)
         if userId == None:
-            self.notifs.append("Username and password not found.")
             return False
         self.userId = userId
-        self.SetPage(AppPagesEnum.HOME)
         return True
     def SearchReports(self):
         return list(self.reportsDB.Read().values())
@@ -71,9 +62,9 @@ class Database:
         self.data[id] = value
     def Update(self, id, value):
         self.data[id] = value
-    def Read(self):
-        return self.data
-    def Read(self, id):
+    def Read(self, id=None):
+        if id == None:
+            return self.data
         return self.data[id]
     def Delete(self, id):
         del self.data[id]
@@ -182,7 +173,7 @@ class ResolutionAction:
 
 
 # ---------- Utility Function for Drawing Text with a Box ----------
-def draw_text_box(surface, text, font, pos, text_color=pygame.Color('black'), box_color=pygame.Color('white'), padding=5):
+def DrawTextBox(surface, text, font, pos, text_color=pygame.Color('black'), box_color=pygame.Color('white'), padding=5):
     """Render text with a background box for better legibility."""
     if not text:
         return
@@ -202,13 +193,13 @@ class InputBox:
         self.color = self.color_inactive
         self.text = text
         self.masked = masked
-        self.txt_surface = FONT.render(self.get_display_text(), True, pygame.Color('black'))
+        self.txt_surface = FONT.render(self.GetDisplayText(), True, pygame.Color('black'))
         self.active = False
 
-    def get_display_text(self):
+    def GetDisplayText(self):
         return '*' * len(self.text) if self.masked else self.text
 
-    def handle_event(self, event):
+    def HandleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.rect.collidepoint(event.pos):
                 self.active = not self.active
@@ -223,15 +214,15 @@ class InputBox:
                 self.text = self.text[:-1]
             else:
                 self.text += event.unicode
-            self.txt_surface = FONT.render(self.get_display_text(), True, pygame.Color('black'))
+            self.txt_surface = FONT.render(self.GetDisplayText(), True, pygame.Color('black'))
 
-    def update(self):
+    def Update(self):
         width = max(200, self.txt_surface.get_width() + 10)
         self.rect.w = width
 
-    def draw(self, screen):
+    def Draw(self, screen):
         pygame.draw.rect(screen, pygame.Color('white'), self.rect)
-        self.txt_surface = FONT.render(self.get_display_text(), True, pygame.Color('black'))
+        self.txt_surface = FONT.render(self.GetDisplayText(), True, pygame.Color('black'))
         screen.blit(self.txt_surface, (self.rect.x + 5, self.rect.y + 5))
         pygame.draw.rect(screen, self.color, self.rect, 2)
 
@@ -243,38 +234,41 @@ class Button:
         self.txt_surface = FONT.render(text, True, pygame.Color('white'))
         self.color = pygame.Color('gray')
 
-    def draw(self, screen):
+    def Draw(self, screen):
         pygame.draw.rect(screen, self.color, self.rect)
         text_rect = self.txt_surface.get_rect(center=self.rect.center)
         screen.blit(self.txt_surface, text_rect)
 
-    def handle_event(self, event):
+    def HandleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.rect.collidepoint(event.pos):
                 self.callback()
 
 # ---------- Scene Management ----------
 class SceneBase:
+    global app, scene_manager
+
     def __init__(self):
-        self.next_scene = self
-
-    def process_events(self, events):
         pass
 
-    def update(self):
+    def ProcessEvents(self, events):
         pass
 
-    def render(self, screen):
+    def Update(self):
         pass
 
-    def switch_to_scene(self, next_scene):
-        self.next_scene = next_scene
+    def Render(self, screen):
+        pass
+    
 
 class SceneManager:
-    def __init__(self, start_scene):
-        self.active_scene = start_scene
+    def __init__(self):
+        pass
 
-    def run(self):
+    def SetScene(self, next_scene):
+        self.active_scene = next_scene
+    
+    def Run(self):
         while self.active_scene is not None:
             events = pygame.event.get()
             for event in events:
@@ -282,11 +276,9 @@ class SceneManager:
                     pygame.quit()
                     sys.exit()
 
-            self.active_scene.process_events(events)
-            self.active_scene.update()
-            self.active_scene.render(screen)
-
-            self.active_scene = self.active_scene.next_scene
+            self.active_scene.ProcessEvents(events)
+            self.active_scene.Update()
+            self.active_scene.Render(screen)
 
             pygame.display.flip()
             clock.tick(30)
@@ -300,14 +292,15 @@ class LoginScene(SceneBase):
         self.message = ""
         self.failed_attempts = 0
 
-        self.login_button = Button("Login", 350, 300, 100, 40, self.try_login)
+        self.login_button = Button("Login", 350, 300, 100, 40, self.TryLogin)
 
-    def try_login(self):
+    def TryLogin(self):
         username = self.username_box.text.strip()
         password = self.password_box.text.strip()
-        if username in USERS and USERS[username] == password:
+        valid_login = app.Login(username, password)
+        if valid_login:
             self.message = "Login successful!"
-            self.switch_to_scene(ReportScene(username))
+            scene_manager.SetScene(ReportScene(username))
         else:
             self.failed_attempts += 1
             self.message = "Invalid username or password."
@@ -315,20 +308,20 @@ class LoginScene(SceneBase):
                 self.message = "Too many failed attempts. Account locked for 15 minutes."
                 self.username_box.text = ""
                 self.password_box.text = ""
-        self.username_box.txt_surface = FONT.render(self.username_box.get_display_text(), True, pygame.Color('black'))
-        self.password_box.txt_surface = FONT.render(self.password_box.get_display_text(), True, pygame.Color('black'))
+        self.username_box.txt_surface = FONT.render(self.username_box.GetDisplayText(), True, pygame.Color('black'))
+        self.password_box.txt_surface = FONT.render(self.password_box.GetDisplayText(), True, pygame.Color('black'))
 
-    def process_events(self, events):
+    def ProcessEvents(self, events):
         for event in events:
-            self.username_box.handle_event(event)
-            self.password_box.handle_event(event)
-            self.login_button.handle_event(event)
+            self.username_box.HandleEvent(event)
+            self.password_box.HandleEvent(event)
+            self.login_button.HandleEvent(event)
 
-    def update(self):
-        self.username_box.update()
-        self.password_box.update()
+    def Update(self):
+        self.username_box.Update()
+        self.password_box.Update()
 
-    def render(self, screen):
+    def Render(self, screen):
         if bg_image:
             screen.blit(bg_image, (0, 0))
         else:
@@ -336,14 +329,14 @@ class LoginScene(SceneBase):
         title_text = "Login"
         title_surface = BIG_FONT.render(title_text, True, pygame.Color('black'))
         title_rect = title_surface.get_rect(center=(WIDTH // 2, 100))
-        draw_text_box(screen, title_text, BIG_FONT, (title_rect.x, title_rect.y))
-        self.username_box.draw(screen)
-        self.password_box.draw(screen)
-        self.login_button.draw(screen)
-        draw_text_box(screen, "Username:", FONT, (120, 205))
-        draw_text_box(screen, "Password:", FONT, (120, 255))
+        DrawTextBox(screen, title_text, BIG_FONT, (title_rect.x, title_rect.y))
+        self.username_box.Draw(screen)
+        self.password_box.Draw(screen)
+        self.login_button.Draw(screen)
+        DrawTextBox(screen, "Username:", FONT, (120, 205))
+        DrawTextBox(screen, "Password:", FONT, (120, 255))
         if self.message:
-            draw_text_box(screen, self.message, FONT, (300, 350), text_color=pygame.Color('red'))
+            DrawTextBox(screen, self.message, FONT, (300, 350), text_color=pygame.Color('red'))
 
 class ReportScene(SceneBase):
     def __init__(self, username):
@@ -362,10 +355,10 @@ class ReportScene(SceneBase):
         self.problem_box = InputBox(100, 450, 200, 32)
         self.desc_box = InputBox(350, 450, 300, 32)
 
-        self.submit_button = Button("Submit Report", 350, 500, 150, 40, self.submit_report)
+        self.submit_button = Button("Submit Report", 350, 500, 150, 40, self.SubmitReport)
         self.message = ""
 
-    def submit_report(self):
+    def SubmitReport(self):
         if self.selected_location is None:
             self.message = "Please select a location on the map."
             return
@@ -384,11 +377,11 @@ class ReportScene(SceneBase):
         self.desc_box.txt_surface = FONT.render("", True, pygame.Color('black'))
         self.selected_location = None
 
-    def process_events(self, events):
+    def ProcessEvents(self, events):
         for event in events:
-            self.problem_box.handle_event(event)
-            self.desc_box.handle_event(event)
-            self.submit_button.handle_event(event)
+            self.problem_box.HandleEvent(event)
+            self.desc_box.HandleEvent(event)
+            self.submit_button.HandleEvent(event)
             if event.type == pygame.MOUSEBUTTONDOWN:
                 map_rect = pygame.Rect(100, 30, 600, 400)
                 if map_rect.collidepoint(event.pos):
@@ -396,11 +389,11 @@ class ReportScene(SceneBase):
                     self.selected_location = (x, y)
                     self.message = f"Location selected: {self.selected_location}"
 
-    def update(self):
-        self.problem_box.update()
-        self.desc_box.update()
+    def Update(self):
+        self.problem_box.Update()
+        self.desc_box.Update()
 
-    def render(self, screen):
+    def Render(self, screen):
         if bg_image:
             screen.blit(bg_image, (0, 0))
         else:
@@ -408,27 +401,27 @@ class ReportScene(SceneBase):
         title_text = "Report a Problem"
         title_surface = BIG_FONT.render(title_text, True, pygame.Color('black'))
         title_rect = title_surface.get_rect(center=(WIDTH // 2, 20))
-        draw_text_box(screen, title_text, BIG_FONT, (title_rect.x, title_rect.y))
+        DrawTextBox(screen, title_text, BIG_FONT, (title_rect.x, title_rect.y))
         map_rect = self.map_surface.get_rect(center=(WIDTH // 2, 270))  # or try 280 if still tight
         screen.blit(self.map_surface, map_rect.topleft)
         if self.selected_location:
             marker_pos = (100 + self.selected_location[0], 30 + self.selected_location[1])
             pygame.draw.circle(screen, pygame.Color('red'), marker_pos, 5)
-        draw_text_box(screen, "Problem Type:", FONT, (100, 410))
-        draw_text_box(screen, "Description:", FONT, (350, 410))
-        self.problem_box.draw(screen)
-        self.desc_box.draw(screen)
-        self.submit_button.draw(screen)
+        DrawTextBox(screen, "Problem Type:", FONT, (100, 410))
+        DrawTextBox(screen, "Description:", FONT, (350, 410))
+        self.problem_box.Draw(screen)
+        self.desc_box.Draw(screen)
+        self.submit_button.Draw(screen)
         if self.message:
-            draw_text_box(screen, self.message, FONT, (100, 550), text_color=pygame.Color('blue'))
+            DrawTextBox(screen, self.message, FONT, (100, 550), text_color=pygame.Color('blue'))
         if self.report_info:
-            draw_text_box(screen, self.report_info, FONT, (100, 580), text_color=pygame.Color('green'))
+            DrawTextBox(screen, self.report_info, FONT, (100, 580), text_color=pygame.Color('green'))
 
 # ---------- Main ----------
 def main():
-    start_scene = LoginScene()
-    scene_manager = SceneManager(start_scene)
-    scene_manager.run()
+    global scene_manager
+    scene_manager.SetScene(start_scene)
+    scene_manager.Run()
 
 
 pygame.init()
@@ -449,6 +442,9 @@ app = App()
 app.CreateAccount("admin", "admin")
 app.CreateAccount("user", "password")
 
+start_scene = LoginScene()
+# start_scene = ReportScene("user")
+scene_manager = SceneManager()
 
 # ---------- Load Background Image ----------
 try:
