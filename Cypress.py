@@ -350,9 +350,9 @@ class ReportScene(SceneBase):
             self.map_surface = pygame.image.load("toronto_map.png").convert()
             self.map_surface = pygame.transform.scale(self.map_surface, (600, 400))
         except Exception as e:
-                print("Error loading Toronto map:", e)
-                self.map_surface = pygame.Surface((600, 400))
-                self.map_surface.fill(pygame.Color('lightgray'))
+            print("Error loading Toronto map:", e)
+            self.map_surface = pygame.Surface((600, 400))
+            self.map_surface.fill(pygame.Color('lightgray'))
         self.report_info = ""
         self.selected_location = None
 
@@ -360,6 +360,8 @@ class ReportScene(SceneBase):
         self.desc_box = InputBox(350, 450, 300, 32)
 
         self.submit_button = Button("Submit Report", 350, 500, 150, 40, self.SubmitReport)
+        self.search_button = Button("Search Reports", 100, 500, 150, 40, self.GoToSearch)
+
         self.message = ""
 
     def SubmitReport(self):
@@ -377,10 +379,10 @@ class ReportScene(SceneBase):
             return
 
         user = app.usersDB.Read(app.userId)
-
-        report = Report(location, problem_type, description,
+        app.SubmitReport(location, problem_type, description,
                          user, "insert time", "Department1")
-        self.report_info = f"Report by {user.username}: {self.problem_box.text}, {self.desc_box.text} at {self.selected_location}"
+
+        self.report_info = f"Report by {user.username}: {problem_type}, {description} at {location}"
         self.message = "Report submitted successfully!"
         self.problem_box.text = ""
         self.desc_box.text = ""
@@ -388,11 +390,15 @@ class ReportScene(SceneBase):
         self.desc_box.txt_surface = FONT.render("", True, pygame.Color('black'))
         self.selected_location = None
 
+    def GoToSearch(self):
+        scene_manager.SetScene(SearchScene())
+
     def ProcessEvents(self, events):
         for event in events:
             self.problem_box.HandleEvent(event)
             self.desc_box.HandleEvent(event)
             self.submit_button.HandleEvent(event)
+            self.search_button.HandleEvent(event)
             if event.type == pygame.MOUSEBUTTONDOWN:
                 map_rect = pygame.Rect(100, 30, 600, 400)
                 if map_rect.collidepoint(event.pos):
@@ -413,7 +419,7 @@ class ReportScene(SceneBase):
         title_surface = BIG_FONT.render(title_text, True, pygame.Color('black'))
         title_rect = title_surface.get_rect(center=(WIDTH // 2, 20))
         DrawTextBox(screen, title_text, BIG_FONT, (title_rect.x, title_rect.y))
-        map_rect = self.map_surface.get_rect(center=(WIDTH // 2, 270))  # or try 280 if still tight
+        map_rect = self.map_surface.get_rect(center=(WIDTH // 2, 270))
         screen.blit(self.map_surface, map_rect.topleft)
         if self.selected_location:
             marker_pos = (100 + self.selected_location[0], 30 + self.selected_location[1])
@@ -423,11 +429,136 @@ class ReportScene(SceneBase):
         self.problem_box.Draw(screen)
         self.desc_box.Draw(screen)
         self.submit_button.Draw(screen)
+        self.search_button.Draw(screen)
         if self.message:
             DrawTextBox(screen, self.message, FONT, (100, 550), text_color=pygame.Color('blue'))
         if self.report_info:
             DrawTextBox(screen, self.report_info, FONT, (100, 580), text_color=pygame.Color('green'))
+class SearchScene(SceneBase):
+    def __init__(self):
+        super().__init__()
+        try:
+            self.map_surface = pygame.image.load("toronto_map.png").convert()
+            self.map_surface = pygame.transform.scale(self.map_surface, (600, 400))
+        except Exception as e:
+            print("Error loading Toronto map:", e)
+            self.map_surface = pygame.Surface((600, 400))
+            self.map_surface.fill(pygame.Color('lightgray'))
 
+        self.reports = app.SearchReports()
+        self.message = ""
+        self.back_button = Button("Back", 100, 500, 150, 40, self.GoBack)
+
+    def GoBack(self):
+        scene_manager.SetScene(ReportScene())
+
+    def ProcessEvents(self, events):
+        for event in events:
+            self.back_button.HandleEvent(event)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                # Check if the click was inside the map
+                map_rect = pygame.Rect(100, 80, 600, 400)
+                if map_rect.collidepoint(event.pos):
+                    # Translate mouse coordinates to map-relative coordinates
+                    map_click = (event.pos[0] - 100, event.pos[1] - 80)
+                    
+                    # Check if any report marker is close enough
+                    for report in self.reports:
+                        if report.location:
+                            rx, ry = report.location
+                            if abs(rx - map_click[0]) < 10 and abs(ry - map_click[1]) < 10:
+                                scene_manager.SetScene(ViewReportScene(report))
+                                return
+
+                    self.message = "No report selected. Click closer to a marker."
+
+    def Update(self):
+        pass
+
+    def Render(self, screen):
+        if bg_image:
+            screen.blit(bg_image, (0, 0))
+        else:
+            screen.fill(pygame.Color('white'))
+
+        # Draw the title
+        DrawTextBox(screen, "Search Reports", BIG_FONT, (WIDTH // 2 - 150, 20))
+
+        # Then draw the map
+        screen.blit(self.map_surface, (100, 80))  # push map down so title has room
+
+        # Draw markers on map
+        for report in self.reports:
+            if report.location:
+                px, py = report.location
+                pygame.draw.circle(screen, pygame.Color('red'), (100 + px, 80 + py), 6)
+
+        # Draw back button
+        self.back_button.Draw(screen)
+
+        # Optional message
+        if self.message:
+            DrawTextBox(screen, self.message, FONT, (100, 550), text_color=pygame.Color('blue'))
+class ViewReportScene(SceneBase):
+    def __init__(self, report):
+        super().__init__()
+        self.report = report
+        self.back_button = Button("Back", 100, 520, 150, 40, self.GoBack)
+
+        try:
+            self.map_surface = pygame.image.load("toronto_map.png").convert()
+            self.map_surface = pygame.transform.scale(self.map_surface, (600, 400))
+        except Exception as e:
+            print("Error loading Toronto map in ViewReportScene:", e)
+            self.map_surface = pygame.Surface((600, 400))
+            self.map_surface.fill(pygame.Color('lightgray'))
+
+    def GoBack(self):
+        scene_manager.SetScene(SearchScene())
+
+    def ProcessEvents(self, events):
+        for event in events:
+            self.back_button.HandleEvent(event)
+
+    def Update(self):
+        pass
+
+    def Render(self, screen):
+        if bg_image:
+            screen.blit(bg_image, (0, 0))
+        else:
+            screen.fill(pygame.Color('white'))
+
+        # Title
+        DrawTextBox(screen, "View Report", BIG_FONT, (WIDTH // 2 - 150, 20))
+        
+        # Map
+        map_x, map_y = 100, 80
+        screen.blit(self.map_surface, (map_x, map_y))
+
+        # Marker
+        if self.report.location:
+            marker_pos = (map_x + self.report.location[0], map_y + self.report.location[1])
+            pygame.draw.circle(screen, pygame.Color('red'), marker_pos, 6)
+
+        # Back Button
+        self.back_button.Draw(screen)
+
+        base_x = 270  # right of back button
+        base_y = 530  # aligned with back button
+
+        # Each line on its own
+        line1_label = f"Type: {self.report.type}"
+        line1_value = f"Description: {self.report.description}"
+
+        line2_label = f"Location: {self.report.location}"
+        line2_value = f"User: {self.report.user.username}    Status: {self.report.status.name}"
+
+        DrawTextBox(screen, line1_label, SMALL_FONT, (base_x, base_y))
+        DrawTextBox(screen, line1_value, SMALL_FONT, (base_x + 200, base_y))
+
+        DrawTextBox(screen, line2_label, SMALL_FONT, (base_x, base_y + 28))
+        DrawTextBox(screen, line2_value, SMALL_FONT, (base_x + 200, base_y + 28))
 # ---------- Main ----------
 def main():
     global scene_manager
@@ -444,6 +575,7 @@ pygame.display.set_caption("Cypress System Prototype")
 clock = pygame.time.Clock()
 
 # ---------- Fonts ----------
+SMALL_FONT = pygame.font.SysFont("Arial", 18)
 FONT = pygame.font.SysFont("Arial", 24)
 BIG_FONT = pygame.font.SysFont("Arial", 48)
 
