@@ -4,13 +4,12 @@ import datetime
 
 from enum import Enum
 
+# Backend Classes
 """
-App (Mock functionality for app without GUI or function calls)
+App (Mock functionality for backend calls)
 Page, notifications/popup
 Login(), SetPage(newPage), SearchReports(), Subscribe(), FindSimilarReports(report)
 """
-# class AppPagesEnum(Enum):
-#     LOGIN, HOME, SEARCH, VIEW_REPORT = range(4)
 class App:
     def __init__(self):
         self.usersDB = Database()
@@ -18,16 +17,16 @@ class App:
         self.userId = None
         self.reportId = None
     
-    def QueryUserIdFromLogin(self, username, password):
+    def QueryUserIdFromLogin(self, username):
         users = self.usersDB.Read()
         for userId in users:
             user = users[userId]
-            if user.username == username and user.password == password:
+            if user.username == username:
                 return userId
         return None
     
     def CreateAccount(self, username, password):
-        userId = self.QueryUserIdFromLogin(username, password)
+        userId = self.QueryUserIdFromLogin(username)
         if userId != None:
             return False
         newUser = User(username, password)
@@ -36,8 +35,11 @@ class App:
         return True
     
     def Login(self, username, password):
-        userId = self.QueryUserIdFromLogin(username, password)
+        userId = self.QueryUserIdFromLogin(username)
         if userId == None:
+            return False
+        user = self.usersDB.Read(userId)
+        if password != user.password:
             return False
         self.userId = userId
         return True
@@ -62,8 +64,6 @@ class App:
     def SubmitReport(self, report):
         self.reportsDB.Create(report.id, report)
         return True
-
-
 
 """
 Database Stub
@@ -191,7 +191,7 @@ class ResolutionAction:
         self.description = description
 
 
-# ---------- Utility Function for Drawing Text with a Box ----------
+# Utility Function for Drawing Text with a Box
 def DrawTextBox(surface, text, font, pos, centered=False, text_color=pygame.Color('black'), box_color=pygame.Color('white'), padding=5):
     """Render text with a background box for better legibility."""
     if not text:
@@ -206,7 +206,7 @@ def DrawTextBox(surface, text, font, pos, centered=False, text_color=pygame.Colo
     # pygame.draw.rect(surface, box_color, box_rect)
     surface.blit(text_surface, text_rect)
 
-# ---------- Utility Classes ----------
+# Utility Classes
 class InputBox:
     def __init__(self, x, y, w, h, text='', masked=False):
         self.rect = pygame.Rect(x, y, w, h)
@@ -278,7 +278,7 @@ class Button:
             if self.rect.collidepoint(event.pos):
                 self.callback()
 
-# ---------- Scene Management ----------
+# Scene Management
 class SceneBase:
     global app, scene_manager
 
@@ -317,7 +317,7 @@ class SceneManager:
             pygame.display.flip()
             clock.tick(30)
 
-# ---------- Scenes ----------
+# Scenes
 class LoginScene(SceneBase):
     def __init__(self):
         super().__init__()
@@ -327,6 +327,7 @@ class LoginScene(SceneBase):
         self.failed_attempts = 0
 
         self.login_button = Button("Login", 350, 300, 100, 40, self.TryLogin)
+        self.sign_up_button = Button("New", 350, 350, 100, 40, self.SignUp)
 
     def TryLogin(self):
         username = self.username_box.text.strip()
@@ -344,12 +345,15 @@ class LoginScene(SceneBase):
                 self.password_box.text = ""
         self.username_box.txt_surface = FONT.render(self.username_box.GetDisplayText(), True, pygame.Color('black'))
         self.password_box.txt_surface = FONT.render(self.password_box.GetDisplayText(), True, pygame.Color('black'))
+    def SignUp(self):
+        scene_manager.SetScene(SignUpScene())
 
     def ProcessEvents(self, events):
         for event in events:
             self.username_box.HandleEvent(event)
             self.password_box.HandleEvent(event)
             self.login_button.HandleEvent(event)
+            self.sign_up_button.HandleEvent(event)
 
     def Update(self):
         self.username_box.Update()
@@ -371,6 +375,64 @@ class LoginScene(SceneBase):
         self.username_box.Draw(screen)
         self.password_box.Draw(screen)
         self.login_button.Draw(screen)
+        self.sign_up_button.Draw(screen)
+        DrawTextBox(screen, "Username:", FONT, (120, 205))
+        DrawTextBox(screen, "Password:", FONT, (120, 255))
+        if self.message:
+            DrawTextBox(screen, self.message, FONT, (WIDTH // 2, 410), centered=True, text_color=pygame.Color('red'))
+
+class SignUpScene(SceneBase):
+    def __init__(self):
+        super().__init__()
+        self.username_box = InputBox(300, 200, 200, 32)
+        self.password_box = InputBox(300, 250, 200, 32, masked=True)
+        self.message = ""
+        self.failed_attempts = 0
+
+        self.create_button = Button("Create", 350, 300, 100, 40, self.TryCreate)
+        self.back_button = Button("Back", 350, 350, 100, 40, self.GoBack)
+
+    def TryCreate(self):
+        username = self.username_box.text.strip()
+        password = self.password_box.text.strip()
+        valid_create = app.CreateAccount(username, password)
+        if valid_create:
+            scene_manager.SetScene(ReportScene())
+        else:
+            self.message = "Username already taken"
+        self.username_box.txt_surface = FONT.render(self.username_box.GetDisplayText(), True, pygame.Color('black'))
+        self.password_box.txt_surface = FONT.render(self.password_box.GetDisplayText(), True, pygame.Color('black'))
+    def GoBack(self):
+        scene_manager.SetScene(LoginScene())
+
+    def ProcessEvents(self, events):
+        for event in events:
+            self.username_box.HandleEvent(event)
+            self.password_box.HandleEvent(event)
+            self.create_button.HandleEvent(event)
+            self.back_button.HandleEvent(event)
+
+    def Update(self):
+        self.username_box.Update()
+        self.password_box.Update()
+
+    def Render(self, screen):
+        if bg_image:
+            screen.blit(bg_image, (0, 0))
+        else:
+            screen.fill(pygame.Color('white'))
+        bg_surface = pygame.Surface((WIDTH, HEIGHT))
+        bg_surface.set_alpha(150)
+        bg_surface.fill((255,255,255))
+        screen.blit(bg_surface, (0, 0))
+        title_text = "Create Account"
+        title_surface = BIG_FONT.render(title_text, True, pygame.Color('black'))
+        title_rect = title_surface.get_rect(center=(WIDTH // 2, 100))
+        DrawTextBox(screen, title_text, BIG_FONT, (title_rect.x, title_rect.y))
+        self.username_box.Draw(screen)
+        self.password_box.Draw(screen)
+        self.create_button.Draw(screen)
+        self.back_button.Draw(screen)
         DrawTextBox(screen, "Username:", FONT, (120, 205))
         DrawTextBox(screen, "Password:", FONT, (120, 255))
         if self.message:
@@ -624,7 +686,7 @@ class ViewReportScene(SceneBase):
             DrawTextBox(screen, right_text, SMALL_FONT, (base_x + 200, text_y))
             text_y += 28
 
-# ---------- Main ----------
+# Main
 def main():
     global scene_manager
     scene_manager.SetScene(start_scene)
@@ -633,27 +695,26 @@ def main():
 
 pygame.init()
 
-# ---------- Global Settings ----------
+# Global Settings
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Cypress System Prototype")
 clock = pygame.time.Clock()
 
-# ---------- Fonts ----------
+# Fonts
 SMALL_FONT = pygame.font.SysFont("Times", 18)
 FONT = pygame.font.SysFont("Times", 24)
 BIG_FONT = pygame.font.SysFont("Times", 48, bold=True)
 
 app = App()
-# ---------- Dummy USERS Dictionary for Login ----------
+# Dummy accounts for Login
 app.CreateAccount("admin", "admin")
 app.CreateAccount("user", "password")
 
 start_scene = LoginScene()
-# start_scene = ReportScene()
 scene_manager = SceneManager()
 
-# ---------- Load Background Image ----------
+# Load Background Image
 try:
     bg_image = pygame.image.load("background.png").convert()
     bg_image = pygame.transform.scale(bg_image, (WIDTH, HEIGHT))
