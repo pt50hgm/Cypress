@@ -251,7 +251,7 @@ class InputBox:
         colorVal = round(self.colorVal)
         pygame.draw.rect(screen, pygame.Color(colorVal, colorVal, colorVal), self.rect)
         self.txt_surface = FONT.render(self.GetDisplayText(), True, pygame.Color('black'))
-        screen.blit(self.txt_surface, (self.rect.x + 5, self.rect.y + 5))
+        screen.blit(self.txt_surface, (self.rect.x + 5, self.rect.y + 2))
         pygame.draw.rect(screen, self.color, self.rect, 2)
 
 class Button:
@@ -376,8 +376,8 @@ class LoginScene(SceneBase):
         self.password_box.Draw(screen)
         self.login_button.Draw(screen)
         self.sign_up_button.Draw(screen)
-        DrawTextBox(screen, "Username:", FONT, (120, 205))
-        DrawTextBox(screen, "Password:", FONT, (120, 255))
+        DrawTextBox(screen, "Username:", FONT, (120, 200+2))
+        DrawTextBox(screen, "Password:", FONT, (120, 250+2))
         if self.message:
             DrawTextBox(screen, self.message, FONT, (WIDTH // 2, 410), centered=True, text_color=pygame.Color('red'))
 
@@ -433,8 +433,8 @@ class SignUpScene(SceneBase):
         self.password_box.Draw(screen)
         self.create_button.Draw(screen)
         self.back_button.Draw(screen)
-        DrawTextBox(screen, "Username:", FONT, (120, 205))
-        DrawTextBox(screen, "Password:", FONT, (120, 255))
+        DrawTextBox(screen, "Username:", FONT, (120, 200+2))
+        DrawTextBox(screen, "Password:", FONT, (120, 250+2))
         if self.message:
             DrawTextBox(screen, self.message, FONT, (WIDTH // 2, 360), centered=True, text_color=pygame.Color('red'))
 
@@ -540,8 +540,8 @@ class ReportScene(SceneBase):
         if self.selected_location:
             marker_pos = (mapX + self.selected_location[0], mapY + self.selected_location[1])
             pygame.draw.circle(screen, pygame.Color('red'), marker_pos, 5)
-        DrawTextBox(screen, "Problem Type:", FONT, (100, 420+5))
-        DrawTextBox(screen, "Description:", FONT, (100, 460+5))
+        DrawTextBox(screen, "Problem Type:", FONT, (100, 420+2))
+        DrawTextBox(screen, "Description:", FONT, (100, 460+2))
         self.problem_box.Draw(screen)
         self.desc_box.Draw(screen)
         self.submit_button.Draw(screen)
@@ -611,11 +611,18 @@ class SearchScene(SceneBase):
         screen.blit(self.map_surface, (mapX, mapY))
 
         # Draw markers on map
+        map_rect = self.map_surface.get_rect(center=(WIDTH // 2, 250))
+        mapX, mapY = map_rect.topleft
+        mouse_pos = pygame.mouse.get_pos()
+        map_click = (mouse_pos[0] - mapX, mouse_pos[1] - mapY)
         for report in self.reports:
             if report.location:
-                px, py = report.location
-                pygame.draw.circle(screen, pygame.Color('red'), (mapX + px, mapY + py), 6)
-
+                rx, ry = report.location
+                if (rx - map_click[0])**2 + (ry - map_click[1])**2 < 15**2:
+                    pygame.draw.circle(screen, pygame.Color('red'), (mapX + rx, mapY + ry), 6)
+                else:
+                    pygame.draw.circle(screen, pygame.Color(255, 100, 100), (mapX + rx, mapY + ry), 6)
+                            
         self.back_button.Draw(screen)
 
         if self.message:
